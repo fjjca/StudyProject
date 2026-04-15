@@ -82,7 +82,7 @@
         // 显示加载动画
         document.getElementById('loading').style.display = 'block';
 
-        fetch(`/ai/generate?message=${encodeURIComponent(message)}`)
+        fetch(`/ai/generateStream?message=${encodeURIComponent(message)}`)
             .then(response => response.text())
             .then(data => {
                 // 隐藏加载动画
