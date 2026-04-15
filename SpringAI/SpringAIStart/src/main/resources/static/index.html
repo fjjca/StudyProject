@@ -71,6 +71,7 @@
 <div id="loading"></div>
 <div id="response"></div>
 
+<!-- 其他部分完全不变，只改 script 内部 -->
 <script>
     function sendMessage() {
         const message = document.getElementById('userMessage').value;
@@ -79,21 +80,48 @@
             return;
         }
 
-        // 显示加载动画
-        document.getElementById('loading').style.display = 'block';
+        const responseDiv = document.getElementById('response');
+        const loadingDiv = document.getElementById('loading');
 
-        fetch(`/ai/generate?message=${encodeURIComponent(message)}`)
-            .then(response => response.text())
-            .then(data => {
-                // 隐藏加载动画
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('response').innerHTML = marked.parse(data);
+        // 清空上次内容，显示加载动画
+        responseDiv.innerHTML = '';
+        loadingDiv.style.display = 'block';
+
+        // 发起流式请求
+        fetch(`/ai/generateStream?message=${encodeURIComponent(message)}`)
+            .then(response => {
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+                let accumulated = '';
+
+                function readStream() {
+                    reader.read().then(({ done, value }) => {
+                        if (done) {
+                            loadingDiv.style.display = 'none';
+                            return;
+                        }
+                        // 解码并追加内容
+                        const chunk = decoder.decode(value, { stream: true });
+                        accumulated += chunk;
+                        // 实时渲染 Markdown
+                        responseDiv.innerHTML = marked.parse(accumulated);
+                        // 自动滚动到底部
+                        responseDiv.scrollTop = responseDiv.scrollHeight;
+                        // 继续读取下一块
+                        readStream();
+                    }).catch(err => {
+                        console.error('流读取错误:', err);
+                        loadingDiv.style.display = 'none';
+                        responseDiv.innerHTML = '<span style="color:red;">请求失败，请稍后再试</span>';
+                    });
+                }
+                readStream();
             })
             .catch(error => {
                 console.error('请求失败:', error);
-                alert('请求失败，请稍后再试');
-                // 隐藏加载动画
-                document.getElementById('loading').style.display = 'none';
+                loadingDiv.style.display = 'none';
+                responseDiv.innerHTML = '<span style="color:red;">请求失败，请稍后再试</span>';
             });
     }
 </script>
